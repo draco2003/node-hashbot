@@ -1,0 +1,24 @@
+{
+  "name": "hashbot",
+  "version": "0.0.1",
+  "description": "HashBot fills the HashBox",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha ./test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/draco2003/node-hashbot.git"
+  },
+  "keywords": [
+    "hash",
+    "hashbox",
+    "hashbot"
+  ],
+  "author": "draco2003",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/draco2003/node-hashbot/issues"
+  },
+  "homepage": "https://github.com/draco2003/node-hashbot"
+}
