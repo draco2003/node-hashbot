@@ -1,0 +1,11 @@
+{
+  "hashbox": {
+    "create" : "/api/hash_create",
+    "verify" : "/api/hash_verify"
+  },
+  "scandir": {
+    "dir": "./",
+    "recursive": true,
+    "filter": ".js"
+  }
+}
