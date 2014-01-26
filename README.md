@@ -1,6 +1,6 @@
 node-hashbot
 ============
 
-HashBot fills the HashBox
+\#Bot fills the \#Box
 
 http://draco2003.github.io/node-hashbot/
