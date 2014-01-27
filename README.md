@@ -10,3 +10,7 @@ http://draco2003.github.io/node-hashbot/
 ```
 $npm install hashbot
 ```
+
+Recommended for use with 
+
+![#Box](https://raw.github.com/draco2003/node-hashbox/master/public/img/hashbox_logo.png)
