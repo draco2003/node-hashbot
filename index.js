@@ -1,112 +1,170 @@
 'use strict';
 
-var cluster = require('cluster')
-  , checksum = require('checksum')
-  , debug = require('debug')('hashbot:cluster')
+var checksum = require('checksum')
+  , debug = require('debug')('hashbot:lib')
+  , _ = require('lodash')
+  , crypto = require('crypto')
+  , request = require('request')
   , conf = require('nconf')
+  , cluster = require('cluster')
   , env = process.env.NODE_ENV || 'development';
 
-conf.add( env , { type: 'file', file: __dirname + '/config/' + env + '.json' });
-conf.add('all', { type: 'file', file: __dirname + '/config/global.json' });
+conf.add('all', { type: 'file', file: __dirname + '/config.json' });
 
-//For testing you can use this to fill the hashbox with hashes.
-//var hashbox_url = nconf.get("hashbox:host") + nconf.get("create");
-var hashboxURL = conf.get('hashbox:host') + conf.get('hashbox:verify');
 
-if (cluster.isMaster) {
-  var scandir = require('scandir').create()
-    , files = [];
+/**
+ * Create HashBot object to hook functions on.
+ */
 
-  scandir.on('file', function(file) {
-    files.push(file);
-  });
+var HashBot = {};
 
-  scandir.on('error', function(err){
-    console.error(err);
-  });
+/**
+ * Respond to Cluster Master Message.
+ * @param {object} msg
+ * @api public
+ */
 
-  scandir.on('end', function(){
-    // Start workers and listen for messages containing notifyRequest
-    var numWorkers = conf.get('hash:threads') || require('os').cpus().length;
-    for (var i = 0; i < numWorkers; i++) {
-      cluster.fork();
-    }
-
-    // If enabled display a progress status to the console
-    if (conf.get('progress:display')) {
-      var interval = conf.get('progress:interval') || 1000;
-      console.log('files to process', files.length);
-      setInterval(function() {
-        var filesLeft = files.length;
-        if (filesLeft === 0) {
-          clearInterval(this);
-        } else {
-          console.log('files remaining', files.length);
-        }
-      }, interval);
-    }
-
-    Object.keys(cluster.workers).forEach(function(id) {
-      cluster.workers[id].on('message', function() {
-        if (files.length > 0) {
-          var nextFile = files.pop();
-          cluster.workers[id].send({
-            cmd: 'hashFile',
-            data: nextFile
+HashBot.handleMessage = function(msg, callback) {
+  var verifyURL = conf.get('hashbox:host') + conf.get('hashbox:verify');
+  if (msg.cmd === 'hashFile') {
+    HashBot.processFile(msg.file, function(err, hash) {
+      if (err) {
+        callback(err, null);
+      } else {
+        request.post(verifyURL, { form:hash },
+          function (err, response, body) {
+            if (err) {
+              callback(err, null);
+            } else {
+              callback(err, {cmd: 'ready', msg: 'ready'});
+            }
           });
-        } else {
-          //Disconnect the workers after we are done processing all files
-          //Don't .kill since the requests might be pending in the resquests pool
-          debug('killing work: ' + id);
-          cluster.workers[id].disconnect();
-        }
-      });
+      }
     });
-  });
+  } else {
+    callback('invalid msg', null);
+  }
+};
 
-  scandir.scan({
-    dir: conf.get('scandir:dir'),
-    recursive: conf.get('scandir:recursive'),
-    filter: new RegExp(conf.get('scandir:filter'))
-  });
+/**
+ * Verify the configured Hashing Algorithm
+ *
+ * @param {string} algo
+ * @api public
+ */
 
-} else {
-  // Only the works need these and this creates a new request pool per worker.
-  var request = require('request');
-
-  process.send({cmd: 'ready', msg: 'ready'});
-  process.on('message', function(msg) {
-    if (msg.cmd === 'hashFile') {
-      processFile(msg.data, function(err, hash) {
-        if (err) {
-          console.log(err);
-        } else {
-          debug(JSON.stringify(hash));
-          request.post(hashboxURL, { form:hash },
-            function (err, response, body) {
-              if (err) {
-                console.log(err);
-                console.log(response);
-                console.log(body);
-              }
-              process.send({cmd: 'ready', msg: 'ready'});
-            });
-        }
-      });
-    }
-  });
+HashBot.verifyAlgorithm = function(algo) {
+  return _.contains(crypto.getHashes(), algo);
 }
 
-function processFile(file, callback) {
-  debug('file:' + file);
+/**
+ * Verify the HashBox Availability/Health status.
+ *
+ * @param {function} callback
+ * @api public
+ */
+
+HashBot.healthCheck = function(callback) {
+  var healthURL = conf.get('hashbox:host') + conf.get('hashbox:health');
+  request.get(healthURL,
+    function (err, res, body) {
+      // Catch request errors or non 200 status
+      if (err || res.statusCode !== 200) {
+        if (!err) {
+          err = 'status code error: ' + res.statusCode;
+        }
+        debug(err)
+        debug(body);
+        callback(err, null);
+      } else {
+        callback(err, res);
+      }
+  });
+};
+
+/**
+ * Display number of files remaining to be processed
+ *
+ * @param {array} files
+ * @api public
+ */
+
+HashBot.progressDisplay = function(files) {
+  // If enabled display a progress status to the console
+  if (conf.get('progress:display')) {
+    var interval = conf.get('progress:interval') || 1000;
+    debug('Files to start: ' + files.length);
+    setInterval(function() {
+      debug('Files left to process: ' + files.length);
+      // unref this timer so it doesn't keep the program running
+      this.unref();
+    }, interval);
+  }
+};
+
+/**
+ * Setup a HashBot Cluster
+ *
+ * @param {array} files
+ * @api public
+ */
+
+HashBot.setupCluster = function(files) {
+  debug('Setting up Cluster');
+  // If enabled display progress count
+  HashBot.progressDisplay(files);
+
+  // Start workers and listen for messages
+  var numWorkers = conf.get('hashbot:workers') || 1;
+  debug('Starting ' + numWorkers + ' hashbot workers');
+  _.times(numWorkers,
+    function() {
+      cluster.fork();
+    }
+  )
+
+  _.forEach(cluster.workers, function(worker) {
+    worker.on('message', function() {
+      if (!_.isEmpty(files)) {
+        worker.send({
+          cmd: 'hashFile',
+          file: files.pop()
+        });
+      } else {
+        //Disconnect the workers after we are done processing all files
+        //Don't .kill since the requests might be pending in the resquests pool
+        debug('killing work: ' + worker.id);
+        worker.disconnect();
+      }
+    });
+  });
+};
+
+/**
+ * Hash a given file.
+ *
+ * @param {string} file
+ * @param {function} callback
+ * @api public
+ */
+
+HashBot.processFile = function(file, callback) {
+  //debug('file:' + file);
   var options = {
-    algorithm: conf.get('hash:algorithm') || 'sha1'
+    algorithm: conf.get('hashbot:algorithm') || 'sha1'
   };
 
   checksum.file(file, options, function (err, hash) {
     if (err) {
-      console.log(err);
+      callback(err, null);
+    } else {
+      callback(null, {key: file, hash: hash});
     }
-    callback(err, {key: file, hash: hash});
   });
 }
+
+/**
+ * Export `HashBot`.
+ */
+
+module.exports = HashBot;

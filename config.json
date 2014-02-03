@@ -1,0 +1,20 @@
+{
+  "hashbox": {
+    "host" : "http://127.0.0.1:9999",
+    "verify" : "/api/hash_verify",
+    "health" : "/api/health"
+  },
+  "scandir": {
+    "dir": "./",
+    "recursive": true,
+    "filter": ".js"
+  },
+  "progress": {
+    "display": true,
+    "interval": 1000
+  },
+  "hashbot": {
+    "workers": 3,
+    "algorithm": "md5"
+  }
+}

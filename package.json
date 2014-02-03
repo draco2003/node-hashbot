@@ -17,11 +17,24 @@
   "bugs": {
     "url": "https://github.com/draco2003/node-hashbot/issues"
   },
-  "homepage": "https://github.com/draco2003/node-hashbot",
+  "homepage": "http://draco2003.github.io/node-hashbot/",
   "dependencies": {
     "checksum": "~0.1.1",
     "request": "~2.33.0",
     "nconf": "~0.6.9",
-    "debug": "~0.7.4"
+    "debug": "~0.7.4",
+    "lodash": "~2.4.1",
+    "scandir": "~0.1.2",
+    "commander": "~2.1.0"
+  },
+  "devDependencies": {
+    "mocha": "~1.17.1",
+    "nock": "~0.27.2"
+  },
+  "scripts": {
+    "test": "mocha -u tdd -R spec"
+  },
+  "bin": {
+    "hashbot": "bin/hashbot"
   }
 }

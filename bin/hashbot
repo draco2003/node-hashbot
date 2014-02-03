@@ -1,0 +1,81 @@
+#!/usr/bin/env node
+
+'use strict';
+
+
+/**
+ * Modules required for handling Options
+ */
+
+var program = require('commander')
+  , pkg = require('../package');
+
+// Setup CLI flags
+program
+  .version(pkg.version)
+  .option('-w, --workers <n>', 'The number of workers to spawn', parseInt)
+  .option('-v, --verbose', 'Be verbose')
+  .parse(process.argv);
+
+if (program.verbose) {
+  process.env.DEBUG = '*';
+}
+
+/**
+ * Modules required for running.
+ */
+var cluster = require('cluster')
+  , debug = require('debug')('hashbot:cli')
+  , HashBot = require('..')
+  , crypto = require('crypto')
+  , conf = require('nconf');
+
+//load the Config options from file
+conf.add('all', { type: 'file', file: __dirname + '/../config.json' });
+
+if (cluster.isMaster) {
+  debug('Starting Master');
+
+  if (program.workers) {
+    conf.set('hashbot:workers',program.workers);
+  }
+
+  // Catch invalid algorithm before processing files
+  if (!HashBot.verifyAlgorithm(conf.get('hashbot:algorithm'))) {
+      console.log('Please choose a valid Hashing Algorithm');
+      process.exit(1);
+  }
+
+  HashBot.healthCheck(function(err, response) {
+    if (err){
+      debug('Healthcheck Failed, process exiting');
+      process.exit(1);
+    } else {
+      var scandir = require('scandir').create();
+      var files = [];
+      scandir.on('file', function(file) { files.push(file); });
+      scandir.on('error', function(err) { console.log(err); });
+
+      scandir.on('end', function() {
+        debug('Scanning Complete');
+        HashBot.setupCluster(files);
+      });
+
+      debug('Scanning ' +  conf.get('scandir:filter') + ' files in ' + conf.get('scandir:dir'));
+      scandir.scan({
+        dir: conf.get('scandir:dir'),
+        recursive: conf.get('scandir:recursive'),
+        filter: new RegExp(conf.get('scandir:filter'))
+      });
+    }
+  });
+
+} else {
+  debug('Starting Worker:' + cluster.worker.id);
+  process.send({cmd: 'ready', msg: 'ready'});
+  process.on('message', function(msg) {
+    HashBot.handleMessage(msg, function(err, res_msg) {
+      process.send(res_msg);
+    });
+  });
+}
