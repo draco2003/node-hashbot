@@ -1,7 +1,8 @@
 node-hashbot
 ============
 
-[![NPM](https://nodei.co/npm/hashbot.png?downloads=true&stars=true)](https://nodei.co/npm/hashbot/)
+[![Build Status](https://travis-ci.org/draco2003/node-hashbot.png?branch=master)](https://travis-ci.org/draco2003/node-hashbot)
+[![NPM](https://nodei.co/npm/hashbot.png?downloads=true&stars=true&stuff=stuff)](https://nodei.co/npm/hashbot/)
 
 \#Bot fills the \#Box
 
