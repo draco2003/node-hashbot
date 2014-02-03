@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-
 'use strict';
-
 
 /**
  * Modules required for handling Options
@@ -13,12 +11,25 @@ var program = require('commander')
 // Setup CLI flags
 program
   .version(pkg.version)
+  .option('-d, --directory <s>', 'Directory to scan')
+  .option('-c, --config <s>', 'Configuration file')
   .option('-w, --workers <n>', 'The number of workers to spawn', parseInt)
   .option('-v, --verbose', 'Be verbose')
+
   .parse(process.argv);
 
 if (program.verbose) {
   process.env.DEBUG = '*';
+}
+
+if (!program.config && !program.directory) {
+  console.log('You must pass a config file or default directory');
+  process.exit(1);
+}
+
+var config_path = __dirname + '/../config.json';
+if (program.config) {
+  config_path = program.config;
 }
 
 /**
@@ -31,13 +42,17 @@ var cluster = require('cluster')
   , conf = require('nconf');
 
 //load the Config options from file
-conf.add('all', { type: 'file', file: __dirname + '/../config.json' });
+conf.add('all', { type: 'file', file: config_path });
 
 if (cluster.isMaster) {
   debug('Starting Master');
 
   if (program.workers) {
     conf.set('hashbot:workers',program.workers);
+  }
+
+  if (program.directory) {
+    conf.set('scandir:dir',program.directory);
   }
 
   // Catch invalid algorithm before processing files
