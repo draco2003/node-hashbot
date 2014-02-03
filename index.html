@@ -38,7 +38,7 @@
 
 <p>To get started you can either:</p>
 
-<pre><code>$ npm install hashbot
+<pre><code>$ npm install hashbot -g
 </code></pre>
 
 <p>or </p>
@@ -58,17 +58,22 @@
 
 <pre><code>{
   "hashbox": {
-    "host" : "httpp://127.0.0.1:9999"
-    "create" : "/api/hash_create",
-    "verify" : "/api/hash_verify"
-  },
-  "hash": {
-    "threads": 1
+    "host" : "http://127.0.0.1:9999",
+    "verify" : "/api/hash_verify",
+    "health" : "/api/health"
   },
   "scandir": {
-    "dir": "./node_modules",
+    "dir": "./node_modules/",
     "recursive": true,
-    "filter": "/.js/"
+    "filter": ".js"
+  },
+  "progress": {
+    "display": true,
+    "interval": 10000
+  },
+  "hashbot": {
+    "workers": 3,
+    "algorithm": "md5"
   }
 }
 </code></pre>
@@ -78,8 +83,13 @@
 
 <p>Its as simple as:</p>
 
-<pre><code>cd ./node_modules/node-hashbot
-node .
+<pre><code>hashbot -d /somefolder
+</code></pre>
+
+<p>or if you checkted out from source:</p>
+
+<pre><code>cd node-hashbot
+node ./bin/hashbot -d /somefolder
 </code></pre>
 
 <h3>
@@ -87,10 +97,6 @@ node .
 
 <ul>
 <li>Decide which errors the client should worry about trapping/reacting to.</li>
-<li>Decide if we want to flush out this script to be a full create script vs. just a verify</li>
-<li>Handle #Box errors more gracefully.</li>
-<li>Create an executable script so you can install globally</li>
-<li>Setup CLI flags to point it at a config when running globally and manage other settings via nconf cli args </li>
 </ul><h3>
 <a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
 
