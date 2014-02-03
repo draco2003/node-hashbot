@@ -1,6 +1,6 @@
 {
   "name": "hashbot",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "HashBot fills the HashBox",
   "main": "index.js",
   "repository": {
