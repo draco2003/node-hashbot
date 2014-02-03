@@ -3,4 +3,5 @@ node_js:
 - '0.8'
 - '0.10'
 notifications:
-  email: - draco2003@gmail.com
+  email:
+    - draco2003@gmail.com
