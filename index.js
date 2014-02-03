@@ -8,9 +8,6 @@ var checksum = require('checksum')
   , conf = require('nconf')
   , cluster = require('cluster');
 
-conf.add('all', { type: 'file', file: __dirname + '/config.json' });
-
-
 /**
  * Create HashBot object to hook functions on.
  */
@@ -148,7 +145,6 @@ HashBot.setupCluster = function(files) {
  */
 
 HashBot.processFile = function(file, callback) {
-  //debug('file:' + file);
   var options = {
     algorithm: conf.get('hashbot:algorithm') || 'sha1'
   };

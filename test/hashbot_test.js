@@ -3,10 +3,15 @@ var assert = require('assert')
   , conf = require('nconf')
   , HashBot = require('..');
 
+//Pull in example config
+conf.add('all', { type: 'file', file: __dirname + '/../example.config.json' });
 
+//Disable Network Requets for tests
 nock.disableNetConnect();
 
+//Uncomment below and comment out above when adding new tests to get example request code snippet
 //nock.recorder.rec();
+
 var testfile = './test/fixtures/testfile.txt';
 
 var healthCheck_404 = nock('http://127.0.0.1:9999')
