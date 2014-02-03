@@ -27,9 +27,9 @@ if (!program.config && !program.directory) {
   process.exit(1);
 }
 
-var config_path = __dirname + '/../config.json';
+var configPath = __dirname + '/../config.json';
 if (program.config) {
-  config_path = program.config;
+  configPath = program.config;
 }
 
 /**
@@ -38,11 +38,10 @@ if (program.config) {
 var cluster = require('cluster')
   , debug = require('debug')('hashbot:cli')
   , HashBot = require('..')
-  , crypto = require('crypto')
   , conf = require('nconf');
 
 //load the Config options from file
-conf.add('all', { type: 'file', file: config_path });
+conf.add('all', { type: 'file', file: configPath });
 
 if (cluster.isMaster) {
   debug('Starting Master');
@@ -57,11 +56,11 @@ if (cluster.isMaster) {
 
   // Catch invalid algorithm before processing files
   if (!HashBot.verifyAlgorithm(conf.get('hashbot:algorithm'))) {
-      console.log('Please choose a valid Hashing Algorithm');
-      process.exit(1);
+    console.log('Please choose a valid Hashing Algorithm');
+    process.exit(1);
   }
 
-  HashBot.healthCheck(function(err, response) {
+  HashBot.healthCheck(function(err) {
     if (err){
       debug('Healthcheck Failed, process exiting');
       process.exit(1);
@@ -89,8 +88,8 @@ if (cluster.isMaster) {
   debug('Starting Worker:' + cluster.worker.id);
   process.send({cmd: 'ready', msg: 'ready'});
   process.on('message', function(msg) {
-    HashBot.handleMessage(msg, function(err, res_msg) {
-      process.send(res_msg);
+    HashBot.handleMessage(msg, function(err, resMsg) {
+      process.send(resMsg);
     });
   });
 }

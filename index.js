@@ -6,8 +6,7 @@ var checksum = require('checksum')
   , crypto = require('crypto')
   , request = require('request')
   , conf = require('nconf')
-  , cluster = require('cluster')
-  , env = process.env.NODE_ENV || 'development';
+  , cluster = require('cluster');
 
 conf.add('all', { type: 'file', file: __dirname + '/config.json' });
 
@@ -32,7 +31,7 @@ HashBot.handleMessage = function(msg, callback) {
         callback(err, null);
       } else {
         request.post(verifyURL, { form:hash },
-          function (err, response, body) {
+          function (err) {
             if (err) {
               callback(err, null);
             } else {
@@ -55,7 +54,7 @@ HashBot.handleMessage = function(msg, callback) {
 
 HashBot.verifyAlgorithm = function(algo) {
   return _.contains(crypto.getHashes(), algo);
-}
+};
 
 /**
  * Verify the HashBox Availability/Health status.
@@ -73,13 +72,13 @@ HashBot.healthCheck = function(callback) {
         if (!err) {
           err = 'status code error: ' + res.statusCode;
         }
-        debug(err)
+        debug(err);
         debug(body);
         callback(err, null);
       } else {
         callback(err, res);
       }
-  });
+    });
 };
 
 /**
@@ -121,7 +120,7 @@ HashBot.setupCluster = function(files) {
     function() {
       cluster.fork();
     }
-  )
+  );
 
   _.forEach(cluster.workers, function(worker) {
     worker.on('message', function() {
@@ -161,7 +160,7 @@ HashBot.processFile = function(file, callback) {
       callback(null, {key: file, hash: hash});
     }
   });
-}
+};
 
 /**
  * Export `HashBot`.
