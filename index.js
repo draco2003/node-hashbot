@@ -128,7 +128,7 @@ HashBot.setupCluster = function(files) {
         });
       } else {
         //Disconnect the workers after we are done processing all files
-        //Don't .kill since the requests might be pending in the resquests pool
+        //Don't .kill since the requests might be pending in the requests pool
         debug('killing work: ' + worker.id);
         worker.disconnect();
       }
