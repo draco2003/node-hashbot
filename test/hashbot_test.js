@@ -1,6 +1,7 @@
 var assert = require('assert')
   , nock = require('nock')
   , conf = require('nconf')
+  , qs = require('querystring')
   , HashBot = require('..');
 
 //Pull in example config
@@ -12,18 +13,20 @@ nock.disableNetConnect();
 //Uncomment below and comment out above when adding new tests to get example request code snippet
 //nock.recorder.rec();
 
-var testfile = './test/fixtures/testfile.txt';
+var testFile = './test/fixtures/testfile.txt'
+  , testFileHash = '0b26e313ed4a7ca6904b0e9369e5b957'
+  , testLocation = conf.get('hashbot:location')
+  , testFileKey = testLocation + ":" + testFile
+  , testFilePost = qs.stringify({ key: testFileKey, hash: testFileHash})
+  , hashboxURL = conf.get("hashbox:host")
+  , hashboxVerify = conf.get("hashbox:verify")
+  , hashboxHealth = conf.get("hashbox:health");
 
-var healthCheck_404 = nock('http://127.0.0.1:9999')
-                  .get('/api/health')
-                  .reply(404);
+var healthCheck_404 = nock(hashboxURL).get(hashboxHealth).reply(404);
+var healthCheck_200 = nock(hashboxURL).get(hashboxHealth).reply(200);
 
-var healthCheck_200 = nock('http://127.0.0.1:9999')
-                  .get('/api/health')
-                  .reply(200);
-
-var handleMessage_testfile = nock('http://127.0.0.1:9999')
-  .post('/api/hash_verify', "key=.%2Ftest%2Ffixtures%2Ftestfile.txt&hash=0b26e313ed4a7ca6904b0e9369e5b957")
+var handleMessage_testfile = nock(hashboxURL)
+  .post(hashboxVerify, testFilePost)
   .reply(400, '{ "status": "failure", "data": "Hash not accepted, doesn\'t exist" }');
 
 describe('HashBot', function() {
@@ -57,10 +60,10 @@ describe('HashBot', function() {
 
   describe('processFile', function() {
     it('should hash test file', function(done) {
-      HashBot.processFile(testfile ,function(err, hash) {
+      HashBot.processFile(testFile ,function(err, hash) {
         assert.equal(err, null);
-        assert.equal(hash.hash, "0b26e313ed4a7ca6904b0e9369e5b957");
-        assert.equal(hash.key, testfile);
+        assert.equal(hash.hash, testFileHash);
+        assert.equal(hash.key, testFileKey);
         done();
       });
     });
@@ -83,7 +86,7 @@ describe('HashBot', function() {
       });
     });
     it('should handle valid msg', function(done) {
-      HashBot.handleMessage({cmd: 'hashFile', file: testfile} ,function(err, res) {
+      HashBot.handleMessage({cmd: 'hashFile', file: testFile} ,function(err, res) {
         assert.equal(err, null);
         assert.equal(res.cmd, 'ready');
         assert.equal(res.msg, 'ready');

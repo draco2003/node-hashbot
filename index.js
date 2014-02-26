@@ -27,7 +27,7 @@ HashBot.handleMessage = function(msg, callback) {
       if (err) {
         callback(err, null);
       } else {
-        request.post(verifyURL, { form:hash },
+        request.post(verifyURL, { form: hash },
           function (err) {
             if (err) {
               callback(err, null);
@@ -105,10 +105,8 @@ HashBot.progressDisplay = function(files) {
  * @api public
  */
 
-HashBot.setupCluster = function(files) {
+HashBot.startCluster = function() {
   debug('Setting up Cluster');
-  // If enabled display progress count
-  HashBot.progressDisplay(files);
 
   // Start workers and listen for messages
   var numWorkers = conf.get('hashbot:workers') || 1;
@@ -119,6 +117,27 @@ HashBot.setupCluster = function(files) {
     }
   );
 
+  var scandir = require('scandir').create();
+  var files = [];
+  var scanComplete = false;
+  // If enabled display progress count
+  HashBot.progressDisplay(files);
+
+  scandir.on('file', function(file) { files.push(file); });
+  scandir.on('error', function(err) { console.error(err); });
+
+  scandir.on('end', function() {
+    debug('Scanning Complete');
+    scanComplete = true;
+  });
+
+  debug('Scanning ' +  conf.get('scandir:filter') + ' files in ' + conf.get('scandir:dir'));
+  scandir.scan({
+    dir: conf.get('scandir:dir'),
+    recursive: conf.get('scandir:recursive'),
+    filter: new RegExp(conf.get('scandir:filter'))
+  });
+
   _.forEach(cluster.workers, function(worker) {
     worker.on('message', function() {
       if (!_.isEmpty(files)) {
@@ -127,10 +146,15 @@ HashBot.setupCluster = function(files) {
           file: files.pop()
         });
       } else {
-        //Disconnect the workers after we are done processing all files
-        //Don't .kill since the requests might be pending in the requests pool
-        debug('killing work: ' + worker.id);
-        worker.disconnect();
+        if (scanComplete) {
+          worker.send({ cmd: 'shutdown' });
+          //Disconnect the workers after we are done processing all files
+          //Don't .kill since the requests might be pending in the requests pool
+          debug('killing work: ' + worker.id);
+          //worker.disconnect();
+        } else {
+          debug('scan not complete');
+        }
       }
     });
   });
@@ -145,15 +169,49 @@ HashBot.setupCluster = function(files) {
  */
 
 HashBot.processFile = function(file, callback) {
-  var options = {
-    algorithm: conf.get('hashbot:algorithm') || 'sha1'
-  };
-
+  var options = { algorithm: conf.get('hashbot:algorithm') };
+  var location = conf.get('hashbot:location') || 'default';
   checksum.file(file, options, function (err, hash) {
     if (err) {
       callback(err, null);
     } else {
-      callback(null, {key: file, hash: hash});
+      callback(null, {key: location + ':' + file, hash: hash});
+    }
+  });
+};
+
+
+/**
+ * Spin up a HashBot Worker.
+ *
+ * @api public
+ */
+
+HashBot.worker = function() {
+  var processFile = false;
+  var heartbeatInterval = 10000;
+
+  debug('Starting Worker:' + cluster.worker.id);
+  process.send({cmd: 'ready', msg: 'ready'});
+
+  // Handle scandir delays by letting master know we are available
+  setInterval(function(){
+    // Don't send the worker heartbeat if we are currently working on hashing a file
+    if (processFile === false) {
+      process.send({cmd: 'still_ready', msg: 'ready'});
+    }
+  }, heartbeatInterval);
+
+  process.on('message', function(msg) {
+    if (msg.cmd === 'hashFile') {
+      processFile = true;
+      HashBot.handleMessage(msg, function(err, resMsg) {
+        processFile = false;
+        process.send(resMsg);
+      });
+    } else if ( msg.cmd === 'shutdown') {
+      debug('shutting down');
+      process.exit();
     }
   });
 };

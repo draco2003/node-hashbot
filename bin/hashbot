@@ -2,94 +2,69 @@
 'use strict';
 
 /**
- * Modules required for handling Options
+ * Modules required for starting
  */
+var cluster = require('cluster')
+  , fs = require('fs')
+  , conf = require('nconf');
 
-var program = require('commander')
-  , pkg = require('../package');
 
-// Setup CLI flags
-program
-  .version(pkg.version)
-  .option('-d, --directory <s>', 'Directory to scan')
-  .option('-c, --config <s>', 'Configuration file')
-  .option('-w, --workers <n>', 'The number of workers to spawn', parseInt)
-  .option('-v, --verbose', 'Be verbose')
+//load the Config options from file
+conf.argv({
+  'c': {
+    alias: 'config',
+    describe: 'Configuration file',
+    demand: true
+  },
+  'w': {
+    alias: 'hashbot:workers',
+    describe: 'The number of workers to spawn'
+  },
+  'v': {
+    alias: 'hashbot:verbose',
+    describe: 'Be verbose (same as DEBUG=*)',
+  }
+})
+.env()
+.file({ file: conf.get('config') });
 
-  .parse(process.argv);
-
-if (program.verbose) {
+if (conf.get('hashbot:verbose')) {
   process.env.DEBUG = '*';
 }
 
-if (!program.config && !program.directory) {
-  console.log('You must pass a config file or default directory');
+/**
+ * Modules required for running
+ */
+var debug = require('debug')('hashbot:cli')
+  , HashBot = require('..');
+
+// Verify that the config file exists to avoid confusion
+if (!fs.existsSync(conf.get('config'))) {
+  console.error('Config file not found. File: ' + conf.get('config'));
   process.exit(1);
 }
 
-var configPath = __dirname + '/../config.json';
-if (program.config) {
-  configPath = program.config;
-}
-
-/**
- * Modules required for running.
- */
-var cluster = require('cluster')
-  , debug = require('debug')('hashbot:cli')
-  , HashBot = require('..')
-  , conf = require('nconf');
-
-//load the Config options from file
-conf.add('all', { type: 'file', file: configPath });
-
+//Start the master
 if (cluster.isMaster) {
   debug('Starting Master');
 
-  if (program.workers) {
-    conf.set('hashbot:workers',program.workers);
-  }
-
-  if (program.directory) {
-    conf.set('scandir:dir',program.directory);
-  }
-
-  // Catch invalid algorithm before processing files
+  // Catch invalid algorithm before processing files.
   if (!HashBot.verifyAlgorithm(conf.get('hashbot:algorithm'))) {
-    console.log('Please choose a valid Hashing Algorithm');
+    console.error('Please choose a valid Hashing Algorithm');
     process.exit(1);
   }
 
   HashBot.healthCheck(function(err) {
     if (err){
-      debug('Healthcheck Failed, process exiting');
+      console.error('Healthcheck Failed, process exiting');
       process.exit(1);
     } else {
-      var scandir = require('scandir').create();
-      var files = [];
-      scandir.on('file', function(file) { files.push(file); });
-      scandir.on('error', function(err) { console.log(err); });
-
-      scandir.on('end', function() {
-        debug('Scanning Complete');
-        HashBot.setupCluster(files);
-      });
-
-      debug('Scanning ' +  conf.get('scandir:filter') + ' files in ' + conf.get('scandir:dir'));
-      scandir.scan({
-        dir: conf.get('scandir:dir'),
-        recursive: conf.get('scandir:recursive'),
-        filter: new RegExp(conf.get('scandir:filter'))
-      });
+      HashBot.startCluster();
     }
   });
+}
 
-} else {
-  debug('Starting Worker:' + cluster.worker.id);
-  process.send({cmd: 'ready', msg: 'ready'});
-  process.on('message', function(msg) {
-    HashBot.handleMessage(msg, function(err, resMsg) {
-      process.send(resMsg);
-    });
-  });
+//Start the worker
+if (cluster.isWorker) {
+  HashBot.worker();
 }

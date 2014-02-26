@@ -5,6 +5,7 @@
     "health" : "/api/health"
   },
   "scandir": {
+    "dir": "./",
     "recursive": true,
     "filter": ".js"
   },
@@ -14,6 +15,7 @@
   },
   "hashbot": {
     "workers": 3,
-    "algorithm": "md5"
+    "algorithm": "md5",
+    "location": "default"
   }
 }

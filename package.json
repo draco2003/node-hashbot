@@ -19,17 +19,16 @@
   },
   "homepage": "http://draco2003.github.io/node-hashbot/",
   "dependencies": {
-    "checksum": "~0.1.1",
-    "request": "~2.33.0",
-    "nconf": "~0.6.9",
-    "debug": "~0.7.4",
-    "lodash": "~2.4.1",
-    "scandir": "~0.1.2",
-    "commander": "~2.1.0"
+    "checksum": "~0.1",
+    "request": "~2",
+    "nconf": "~0.6",
+    "debug": "~0.7",
+    "lodash": "~2.4",
+    "scandir": "~0.1"
   },
   "devDependencies": {
-    "mocha": "~1.17.1",
-    "nock": "~0.27.2"
+    "mocha": "~1.17",
+    "nock": "~0.27"
   },
   "scripts": {
     "test": "mocha -u tdd -R spec"
