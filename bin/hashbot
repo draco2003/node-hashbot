@@ -35,8 +35,7 @@ if (conf.get('hashbot:verbose')) {
 /**
  * Modules required for running
  */
-var debug = require('debug')('hashbot:cli')
-  , HashBot = require('..');
+var HashBot = require('..');
 
 // Verify that the config file exists to avoid confusion
 if (!fs.existsSync(conf.get('config'))) {
@@ -44,27 +43,8 @@ if (!fs.existsSync(conf.get('config'))) {
   process.exit(1);
 }
 
-//Start the master
 if (cluster.isMaster) {
-  debug('Starting Master');
-
-  // Catch invalid algorithm before processing files.
-  if (!HashBot.verifyAlgorithm(conf.get('hashbot:algorithm'))) {
-    console.error('Please choose a valid Hashing Algorithm');
-    process.exit(1);
-  }
-
-  HashBot.healthCheck(function(err) {
-    if (err){
-      console.error('Healthcheck Failed, process exiting');
-      process.exit(1);
-    } else {
-      HashBot.startCluster();
-    }
-  });
-}
-
-//Start the worker
-if (cluster.isWorker) {
-  HashBot.worker();
+  HashBot.startCluster();
+} else {
+  HashBot.startWorker();
 }

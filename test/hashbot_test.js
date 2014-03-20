@@ -60,36 +60,18 @@ describe('HashBot', function() {
 
   describe('processFile', function() {
     it('should hash test file', function(done) {
-      HashBot.processFile(testFile ,function(err, hash) {
+      HashBot.processFile({msg: 'hashFile', file: testFile }, function(err, resMsg) {
         assert.equal(err, null);
-        assert.equal(hash.hash, testFileHash);
-        assert.equal(hash.key, testFileKey);
+        assert.equal(resMsg.cmd, 'ready');
+        assert.equal(resMsg.msg, 'ready');
         done();
       });
     });
     it('should error on handle missing file', function(done) {
-      HashBot.processFile('./nosuchfile', function(err, hash) {
+      HashBot.processFile({msg: 'hashFile', file: './nosuchfile' }, function(err, resMsg) {
         // Errno 34 is no such file
         assert.equal(err.errno, "34");
-        assert.equal(hash, null);
-        done();
-      });
-    });
-  });
-
-  describe('handleMessage', function() {
-    it('should handle non-command msg', function(done) {
-      HashBot.handleMessage({msg: 'somemsg'} ,function(err, response) {
-        assert.equal(err, 'invalid msg');
-        assert.equal(response, null);
-        done();
-      });
-    });
-    it('should handle valid msg', function(done) {
-      HashBot.handleMessage({cmd: 'hashFile', file: testFile} ,function(err, res) {
-        assert.equal(err, null);
-        assert.equal(res.cmd, 'ready');
-        assert.equal(res.msg, 'ready');
+        assert.equal(resMsg, null);
         done();
       });
     });

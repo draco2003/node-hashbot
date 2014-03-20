@@ -15,31 +15,32 @@ var checksum = require('checksum')
 var HashBot = {};
 
 /**
- * Respond to Cluster Master Message.
- * @param {object} msg
+ * Hash a given file and send the results to #Box
+ *
+ * @param {string} msg        : an object with cmd and optional file and msg properties
+ * @param {function} callback : passes back the message to be sent to the master process
  * @api public
  */
 
-HashBot.handleMessage = function(msg, callback) {
+HashBot.processFile = function(msg, callback) {
   var verifyURL = conf.get('hashbox:host') + conf.get('hashbox:verify');
-  if (msg.cmd === 'hashFile') {
-    HashBot.processFile(msg.file, function(err, hash) {
-      if (err) {
-        callback(err, null);
-      } else {
-        request.post(verifyURL, { form: hash },
-          function (err) {
-            if (err) {
-              callback(err, null);
-            } else {
-              callback(err, {cmd: 'ready', msg: 'ready'});
-            }
-          });
-      }
-    });
-  } else {
-    callback('invalid msg', null);
-  }
+  var options = { algorithm: conf.get('hashbot:algorithm') };
+  var location = conf.get('hashbot:location') || 'default';
+  checksum.file(msg.file, options, function (err, hash) {
+    if (err) {
+      callback(err, null);
+    } else {
+      var postData = {key: location + ':' + msg.file, hash: hash};
+      request.post(verifyURL, { form: postData },
+        function (err) {
+          if (err) {
+            callback(err, null);
+          } else {
+            callback(err, {cmd: 'ready', msg: 'ready'});
+          }
+        });
+    }
+  });
 };
 
 /**
@@ -56,7 +57,7 @@ HashBot.verifyAlgorithm = function(algo) {
 /**
  * Verify the HashBox Availability/Health status.
  *
- * @param {function} callback
+ * @param {function} callback : passes back the request response
  * @api public
  */
 
@@ -89,9 +90,9 @@ HashBot.progressDisplay = function(files) {
   // If enabled display a progress status to the console
   if (conf.get('progress:display')) {
     var interval = conf.get('progress:interval') || 1000;
-    debug('Files to start: ' + files.length);
+    console.log('Files to start: ' + files.length);
     setInterval(function() {
-      debug('Files left to process: ' + files.length);
+      console.log('Files left to process: ' + files.length);
       // unref this timer so it doesn't keep the program running
       this.unref();
     }, interval);
@@ -108,78 +109,68 @@ HashBot.progressDisplay = function(files) {
 HashBot.startCluster = function() {
   debug('Setting up Cluster');
 
-  // Start workers and listen for messages
-  var numWorkers = conf.get('hashbot:workers') || 1;
-  debug('Starting ' + numWorkers + ' hashbot workers');
-  _.times(numWorkers,
-    function() {
-      cluster.fork();
-    }
-  );
+  // Catch invalid algorithm before processing files.
+  if (!HashBot.verifyAlgorithm(conf.get('hashbot:algorithm'))) {
+    console.error('Please choose a valid Hashing Algorithm');
+    process.exit(1);
+  }
 
-  var scandir = require('scandir').create();
-  var files = [];
-  var scanComplete = false;
-  // If enabled display progress count
-  HashBot.progressDisplay(files);
-
-  scandir.on('file', function(file) { files.push(file); });
-  scandir.on('error', function(err) { console.error(err); });
-
-  scandir.on('end', function() {
-    debug('Scanning Complete');
-    scanComplete = true;
-  });
-
-  debug('Scanning ' +  conf.get('scandir:filter') + ' files in ' + conf.get('scandir:dir'));
-  scandir.scan({
-    dir: conf.get('scandir:dir'),
-    recursive: conf.get('scandir:recursive'),
-    filter: new RegExp(conf.get('scandir:filter'))
-  });
-
-  _.forEach(cluster.workers, function(worker) {
-    worker.on('message', function() {
-      if (!_.isEmpty(files)) {
-        worker.send({
-          cmd: 'hashFile',
-          file: files.pop()
-        });
-      } else {
-        if (scanComplete) {
-          worker.send({ cmd: 'shutdown' });
-          //Disconnect the workers after we are done processing all files
-          //Don't .kill since the requests might be pending in the requests pool
-          debug('killing work: ' + worker.id);
-          //worker.disconnect();
-        } else {
-          debug('scan not complete');
-        }
-      }
-    });
-  });
-};
-
-/**
- * Hash a given file.
- *
- * @param {string} file
- * @param {function} callback
- * @api public
- */
-
-HashBot.processFile = function(file, callback) {
-  var options = { algorithm: conf.get('hashbot:algorithm') };
-  var location = conf.get('hashbot:location') || 'default';
-  checksum.file(file, options, function (err, hash) {
-    if (err) {
-      callback(err, null);
+  HashBot.healthCheck(function(err) {
+    if (err){
+      console.error('Healthcheck Failed, process exiting');
+      process.exit(1);
     } else {
-      callback(null, {key: location + ':' + file, hash: hash});
+      // Start workers and listen for messages
+      var numWorkers = conf.get('hashbot:workers') || 1;
+      debug('Starting ' + numWorkers + ' hashbot workers');
+      _.times(numWorkers,
+        function() {
+          cluster.fork();
+        }
+      );
+
+      var scandir = require('scandir').create()
+        , files = []
+        , scanComplete = false;
+
+      // If enabled display progress count
+      HashBot.progressDisplay(files);
+
+      scandir.on('file', function(file) { files.push(file); });
+      scandir.on('error', function(err) { console.error(err); });
+
+      scandir.on('end', function() {
+        debug('Scanning Complete');
+        scanComplete = true;
+      });
+
+      debug('Scanning ' +  conf.get('scandir:filter') + ' files in ' + conf.get('scandir:dir'));
+      scandir.scan({
+        dir: conf.get('scandir:dir'),
+        recursive: conf.get('scandir:recursive'),
+        filter: new RegExp(conf.get('scandir:filter'))
+      });
+
+      _.forEach(cluster.workers, function(worker) {
+        worker.on('message', function() {
+          if (!_.isEmpty(files)) {
+            worker.send({
+              cmd: 'hashFile',
+              file: files.pop()
+            });
+          } else {
+            if (scanComplete) {
+              debug('killing worker: ' + worker.id);
+              worker.send({ cmd: 'shutdown' });
+            } else {
+              debug('scan not complete');
+            }
+          }
+        });
+      });
     }
   });
 };
-
 
 /**
  * Spin up a HashBot Worker.
@@ -187,8 +178,8 @@ HashBot.processFile = function(file, callback) {
  * @api public
  */
 
-HashBot.worker = function() {
-  var processFile = false;
+HashBot.startWorker = function() {
+  var processingFile = false;
   var heartbeatInterval = 10000;
 
   debug('Starting Worker:' + cluster.worker.id);
@@ -197,16 +188,17 @@ HashBot.worker = function() {
   // Handle scandir delays by letting master know we are available
   setInterval(function(){
     // Don't send the worker heartbeat if we are currently working on hashing a file
-    if (processFile === false) {
+    if (processingFile === false) {
       process.send({cmd: 'still_ready', msg: 'ready'});
     }
+    this.unref();
   }, heartbeatInterval);
 
   process.on('message', function(msg) {
     if (msg.cmd === 'hashFile') {
-      processFile = true;
-      HashBot.handleMessage(msg, function(err, resMsg) {
-        processFile = false;
+      processingFile = true;
+      HashBot.processFile(msg, function(err, resMsg) {
+        processingFile = false;
         process.send(resMsg);
       });
     } else if ( msg.cmd === 'shutdown') {
